@@ -552,6 +552,7 @@ test('preserves Gemini tool call extra_content from streaming chunks', async () 
   })
 })
 
+<<<<<<< HEAD
 test('normalizes plain string Bash tool arguments from OpenAI-compatible responses', async () => {
   globalThis.fetch = (async (_input, _init) => {
     return new Response(
@@ -587,11 +588,33 @@ test('normalizes plain string Bash tool arguments from OpenAI-compatible respons
           'Content-Type': 'application/json',
         },
       },
+=======
+test('strips thinking blocks from assistant messages instead of leaking them as text', async () => {
+  let requestBody: Record<string, unknown> | undefined
+
+  globalThis.fetch = (async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body))
+
+    return new Response(
+      JSON.stringify({
+        id: 'chatcmpl-1',
+        model: 'gpt-4o',
+        choices: [
+          {
+            message: { role: 'assistant', content: 'done' },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 },
+      }),
+      { headers: { 'Content-Type': 'application/json' } },
+>>>>>>> 037a855 (fix: strip Anthropic-specific params from 3P provider paths)
     )
   }) as FetchType
 
   const client = createOpenAIShimClient({}) as OpenAIShimClient
 
+<<<<<<< HEAD
   const message = await client.beta.messages.create({
     model: 'google/gemini-3.1-pro-preview',
     system: 'test system',
@@ -1669,6 +1692,33 @@ test('preserves parsed string input for unknown JSON string tool arguments', asy
       input: 'pwd',
     },
   ])
+=======
+  await client.beta.messages.create({
+    model: 'gpt-4o',
+    system: 'test',
+    messages: [
+      { role: 'user', content: 'hello' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'thinking', thinking: 'secret reasoning' },
+          { type: 'text', text: 'visible reply' },
+        ],
+      },
+      { role: 'user', content: 'follow up' },
+    ],
+    max_tokens: 64,
+    stream: false,
+  })
+
+  const msgs = requestBody?.messages as Array<{ role: string; content: string }>
+  const assistantMsg = msgs.find(m => m.role === 'assistant')
+
+  // The assistant message should contain only the visible text,
+  // not <thinking>secret reasoning</thinking>
+  expect(assistantMsg?.content).toBe('visible reply')
+  expect(assistantMsg?.content).not.toContain('thinking')
+>>>>>>> 037a855 (fix: strip Anthropic-specific params from 3P provider paths)
 })
 
 test('sanitizes malformed MCP tool schemas before sending them to OpenAI', async () => {
@@ -2054,4 +2104,55 @@ test('streaming: thinking block closed before tool call', async () => {
     content_block?: Record<string, unknown>
   }
   expect(thinkingStart?.content_block?.type).toBe('thinking')
+})
+
+test('strips thinking blocks from assistant messages instead of leaking them as text', async () => {
+  let requestBody: Record<string, unknown> | undefined
+
+  globalThis.fetch = (async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body))
+
+    return new Response(
+      JSON.stringify({
+        id: 'chatcmpl-1',
+        model: 'gpt-4o',
+        choices: [
+          {
+            message: { role: 'assistant', content: 'done' },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 },
+      }),
+      { headers: { 'Content-Type': 'application/json' } },
+    )
+  }) as FetchType
+
+  const client = createOpenAIShimClient({}) as OpenAIShimClient
+
+  await client.beta.messages.create({
+    model: 'gpt-4o',
+    system: 'test',
+    messages: [
+      { role: 'user', content: 'hello' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'thinking', thinking: 'secret reasoning' },
+          { type: 'text', text: 'visible reply' },
+        ],
+      },
+      { role: 'user', content: 'follow up' },
+    ],
+    max_tokens: 64,
+    stream: false,
+  })
+
+  const msgs = requestBody?.messages as Array<{ role: string; content: string }>
+  const assistantMsg = msgs.find(m => m.role === 'assistant')
+
+  // The assistant message should contain only the visible text,
+  // not <thinking>secret reasoning</thinking>
+  expect(assistantMsg?.content).toBe('visible reply')
+  expect(assistantMsg?.content).not.toContain('thinking')
 })
