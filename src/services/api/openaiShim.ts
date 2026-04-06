@@ -56,7 +56,10 @@ type SecretValueSource = Partial<{
 }>
 
 const GITHUB_MODELS_DEFAULT_BASE = 'https://models.github.ai/inference'
+const GITHUB_COPILOT_DEFAULT_BASE = 'https://api.githubcopilot.com'
+const GITHUB_COPILOT_ENTERPRISE_BASE = 'https://api.enterprise.githubcopilot.com'
 const GITHUB_API_VERSION = '2022-11-28'
+const GITHUB_COPILOT_API_VERSION = '2026-01-09'
 const GITHUB_429_MAX_RETRIES = 3
 const GITHUB_429_BASE_DELAY_SEC = 1
 const GITHUB_429_MAX_DELAY_SEC = 32
@@ -64,6 +67,50 @@ const GEMINI_API_HOST = 'generativelanguage.googleapis.com'
 
 function isGithubModelsMode(): boolean {
   return isEnvTruthy(process.env.CLAUDE_CODE_USE_GITHUB)
+}
+
+/**
+ * Detect whether we're talking to a GitHub Copilot API endpoint
+ * (as opposed to the GitHub Models marketplace endpoint).
+ * Copilot endpoints require different headers (API version, integration ID).
+ */
+function isGithubCopilotEndpoint(baseUrl: string | undefined): boolean {
+  if (!baseUrl) return false
+  try {
+    const hostname = new URL(baseUrl).hostname.toLowerCase()
+    return hostname.endsWith('githubcopilot.com')
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Resolve the correct GitHub base URL for the current token type.
+ * - gho_ tokens (Copilot OAuth) → Copilot Enterprise API
+ * - ghp_/ghu_ tokens (PATs) → GitHub Models marketplace
+ * - Explicit OPENAI_BASE_URL override takes precedence.
+ */
+function resolveGithubBaseUrl(): string {
+  // Explicit override always wins
+  const explicit = process.env.OPENAI_BASE_URL?.trim()
+  if (explicit) return explicit
+
+  const token = (process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? '').trim()
+
+  // Copilot OAuth tokens (gho_) or Copilot user tokens (ghu_)
+  // should use the Copilot Enterprise endpoint.
+  // GITHUB_COPILOT_TOKEN env var also signals Copilot mode.
+  if (
+    token.startsWith('gho_') ||
+    token.startsWith('ghu_') ||
+    process.env.GITHUB_COPILOT_TOKEN?.trim()
+  ) {
+    return isEnvTruthy(process.env.GITHUB_COPILOT_ENTERPRISE)
+      ? GITHUB_COPILOT_ENTERPRISE_BASE
+      : GITHUB_COPILOT_DEFAULT_BASE
+  }
+
+  return GITHUB_MODELS_DEFAULT_BASE
 }
 
 function hasGeminiApiHost(baseUrl: string | undefined): boolean {
@@ -1126,8 +1173,15 @@ class OpenAIShimMessages {
     }
 
     if (isGithub) {
-      headers.Accept = 'application/vnd.github.v3+json'
-      headers['X-GitHub-Api-Version'] = GITHUB_API_VERSION
+      const isCopilot = isGithubCopilotEndpoint(request.baseUrl)
+      if (isCopilot) {
+        headers.Accept = 'application/json'
+        headers['X-GitHub-Api-Version'] = GITHUB_COPILOT_API_VERSION
+        headers['Copilot-Integration-Id'] = 'copilot-developer-cli'
+      } else {
+        headers.Accept = 'application/vnd.github.v3+json'
+        headers['X-GitHub-Api-Version'] = GITHUB_API_VERSION
+      }
     }
 
     // Build the chat completions URL
@@ -1349,7 +1403,11 @@ export function createOpenAIShimClient(options: {
       process.env.OPENAI_MODEL = process.env.GEMINI_MODEL
     }
   } else if (isEnvTruthy(process.env.CLAUDE_CODE_USE_GITHUB)) {
-    process.env.OPENAI_BASE_URL ??= GITHUB_MODELS_DEFAULT_BASE
+    // Also accept GITHUB_COPILOT_TOKEN as a token source for Copilot users
+    if (!process.env.GITHUB_TOKEN && !process.env.GH_TOKEN && process.env.GITHUB_COPILOT_TOKEN) {
+      process.env.GITHUB_TOKEN = process.env.GITHUB_COPILOT_TOKEN
+    }
+    process.env.OPENAI_BASE_URL ??= resolveGithubBaseUrl()
     process.env.OPENAI_API_KEY ??=
       process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? ''
   }

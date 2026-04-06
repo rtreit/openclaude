@@ -293,6 +293,43 @@ export function normalizeGithubModelsApiModel(requestedModel: string): string {
   return segment
 }
 
+/** Default model for GitHub Copilot API endpoints (api.githubcopilot.com). */
+export const DEFAULT_GITHUB_COPILOT_API_MODEL = 'claude-sonnet-4'
+
+/**
+ * Normalize user model string for GitHub Copilot API (api.githubcopilot.com).
+ * Copilot uses bare model names (e.g. "claude-sonnet-4", "gpt-4.1")
+ * without vendor prefixes like "openai/".
+ */
+export function normalizeGithubCopilotApiModel(requestedModel: string): string {
+  const noQuery = requestedModel.split('?', 1)[0] ?? requestedModel
+  let model = noQuery.trim()
+  // Strip vendor prefix (e.g. "openai/gpt-4.1" → "gpt-4.1")
+  if (model.includes('/')) {
+    model = model.split('/').pop()!.trim()
+  }
+  // Strip "github:" prefix (e.g. "github:copilot" → "copilot")
+  if (model.includes(':')) {
+    model = model.split(':', 2)[1]!.trim()
+  }
+  if (!model || model.toLowerCase() === 'copilot') {
+    return DEFAULT_GITHUB_COPILOT_API_MODEL
+  }
+  return model
+}
+
+/**
+ * Check if the resolved base URL points to a GitHub Copilot endpoint.
+ */
+function isResolvedCopilotEndpoint(baseUrl: string | undefined): boolean {
+  if (!baseUrl) return false
+  try {
+    return new URL(baseUrl).hostname.toLowerCase().endsWith('githubcopilot.com')
+  } catch {
+    return false
+  }
+}
+
 export function resolveProviderRequest(options?: {
   model?: string
   baseUrl?: string
@@ -318,7 +355,9 @@ export function resolveProviderRequest(options?: {
   const resolvedModel =
     transport === 'chat_completions' &&
     isEnvTruthy(process.env.CLAUDE_CODE_USE_GITHUB)
-      ? normalizeGithubModelsApiModel(requestedModel)
+      ? (isResolvedCopilotEndpoint(rawBaseUrl ?? process.env.OPENAI_BASE_URL)
+        ? normalizeGithubCopilotApiModel(requestedModel)
+        : normalizeGithubModelsApiModel(requestedModel))
       : descriptor.baseModel
 
   const reasoning = options?.reasoningEffortOverride
