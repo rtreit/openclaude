@@ -96,7 +96,13 @@ function detectProvider(): { name: string; model: string; baseUrl: string; isLoc
     const model = process.env.OPENAI_MODEL || 'github:copilot'
     const baseUrl =
       process.env.OPENAI_BASE_URL || 'https://models.github.ai/inference'
-    return { name: 'GitHub Models', model, baseUrl, isLocal: false }
+    const isCopilot = /githubcopilot\.com/i.test(baseUrl)
+    return {
+      name: isCopilot ? 'GitHub Copilot' : 'GitHub Models',
+      model,
+      baseUrl,
+      isLocal: false,
+    }
   }
 
   if (useOpenAI) {

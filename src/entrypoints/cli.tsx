@@ -7,6 +7,7 @@ import {
   getProviderValidationError,
   validateProviderEnvOrExit,
 } from '../utils/providerValidation.js'
+import { isEnvTruthy } from '../utils/envUtils.js'
 
 // OpenClaude: disable experimental API betas by default.
 // Tool search (defer_loading), global cache scope, and context management
@@ -48,6 +49,35 @@ if (feature('ABLATION_BASELINE') && process.env.CLAUDE_CODE_ABLATION_BASELINE) {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
+  // Load .env file from the project root (if present) so users don't need
+  // to manually export env vars. Only sets vars not already in the environment
+  // to allow shell overrides.
+  {
+    const { existsSync, readFileSync } = await import('fs');
+    const { resolve } = await import('path');
+    const envPath = resolve(process.cwd(), '.env');
+    if (existsSync(envPath)) {
+      const content = readFileSync(envPath, 'utf-8');
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eqIdx = trimmed.indexOf('=');
+        if (eqIdx === -1) continue;
+        const key = trimmed.slice(0, eqIdx).trim();
+        let value = trimmed.slice(eqIdx + 1).trim();
+        // Strip surrounding quotes
+        if ((value.startsWith('"') && value.endsWith('"')) ||
+            (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        // Only set if not already defined (shell env takes precedence)
+        if (!(key in process.env)) {
+          process.env[key] = value;
+        }
+      }
+    }
+  }
+
   // Fast-path for --version/-v: zero module loading needed
   if (args.length === 1 && (args[0] === '--version' || args[0] === '-v' || args[0] === '-V')) {
     // MACRO.VERSION is inlined at build time
@@ -77,6 +107,24 @@ async function main(): Promise<void> {
     hydrateGeminiAccessTokenFromSecureStorage()
     const { hydrateGithubModelsTokenFromSecureStorage } = await import('../utils/githubModelsCredentials.js')
     hydrateGithubModelsTokenFromSecureStorage()
+
+    // Resolve GitHub Copilot base URL early so the startup banner,
+    // profile resolution, and provider validation all see the correct endpoint.
+    if (isEnvTruthy(process.env.CLAUDE_CODE_USE_GITHUB)) {
+      if (!process.env.GITHUB_TOKEN && !process.env.GH_TOKEN && process.env.GITHUB_COPILOT_TOKEN) {
+        process.env.GITHUB_TOKEN = process.env.GITHUB_COPILOT_TOKEN
+      }
+      const token = (process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? '').trim()
+      if (!process.env.OPENAI_BASE_URL) {
+        if (token.startsWith('gho_') || token.startsWith('ghu_') || process.env.GITHUB_COPILOT_TOKEN?.trim()) {
+          process.env.OPENAI_BASE_URL = isEnvTruthy(process.env.GITHUB_COPILOT_ENTERPRISE)
+            ? 'https://api.enterprise.githubcopilot.com'
+            : 'https://api.githubcopilot.com'
+        }
+      }
+      // Set API key early so provider validation sees it
+      process.env.OPENAI_API_KEY ??= token
+    }
   }
 
   const startupEnv = await buildStartupEnvFromProfile({

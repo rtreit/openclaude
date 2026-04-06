@@ -1144,8 +1144,12 @@ class OpenAIShimMessages {
     }
 
     const isGemini = isGeminiMode()
-    const apiKey =
-      this.providerOverride?.apiKey ?? process.env.OPENAI_API_KEY ?? ''
+    // In GitHub mode, prefer GITHUB_TOKEN/GH_TOKEN over OPENAI_API_KEY
+    // to avoid sending an OpenAI sk-* key to the Copilot/GitHub endpoint.
+    const apiKey = this.providerOverride?.apiKey
+      ?? (isGithub
+        ? (process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? process.env.OPENAI_API_KEY ?? '')
+        : (process.env.OPENAI_API_KEY ?? ''))
     // Detect Azure endpoints by hostname (not raw URL) to prevent bypass via
     // path segments like https://evil.com/cognitiveservices.azure.com/
     let isAzure = false
