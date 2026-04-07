@@ -1102,8 +1102,13 @@ class OpenAIShimMessages {
 
     const isGithub = isGithubModelsMode()
     if (isGithub && body.max_completion_tokens !== undefined) {
-      body.max_tokens = body.max_completion_tokens
-      delete body.max_completion_tokens
+      // For newer models like GPT-5.x, keep max_completion_tokens
+      if (params.model && params.model.startsWith('gpt-5')) {
+        // Keep max_completion_tokens for GPT-5.x models
+      } else {
+        body.max_tokens = body.max_completion_tokens
+        delete body.max_completion_tokens
+      }
     }
 
     if (params.temperature !== undefined) body.temperature = params.temperature
