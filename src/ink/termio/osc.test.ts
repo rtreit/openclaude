@@ -27,21 +27,6 @@ async function flushClipboardCopy(): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, 0))
 }
 
-async function waitForExecCall(
-  command: string,
-  attempts = 20,
-): Promise<(typeof execFileNoThrowMock.mock.calls)[number] | undefined> {
-  for (let attempt = 0; attempt < attempts; attempt++) {
-    const call = execFileNoThrowMock.mock.calls.find(([cmd]) => cmd === command)
-    if (call) {
-      return call
-    }
-    await flushClipboardCopy()
-  }
-
-  return undefined
-}
-
 describe('Windows clipboard fallback', () => {
   beforeEach(() => {
     execFileNoThrowMock.mockClear()
@@ -77,7 +62,9 @@ describe('Windows clipboard fallback', () => {
     await setClipboard('Привет мир')
     await flushClipboardCopy()
 
-    const windowsCall = await waitForExecCall('powershell')
+    const windowsCall = execFileNoThrowMock.mock.calls.find(
+      ([cmd]) => cmd === 'powershell',
+    )
 
     expect(windowsCall?.[2]).toMatchObject({
       stdin: 'ignore',
