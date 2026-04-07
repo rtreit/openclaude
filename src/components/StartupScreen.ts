@@ -85,6 +85,7 @@ function detectProvider(): { name: string; model: string; baseUrl: string; isLoc
   const useGemini = process.env.CLAUDE_CODE_USE_GEMINI === '1' || process.env.CLAUDE_CODE_USE_GEMINI === 'true'
   const useGithub = process.env.CLAUDE_CODE_USE_GITHUB === '1' || process.env.CLAUDE_CODE_USE_GITHUB === 'true'
   const useOpenAI = process.env.CLAUDE_CODE_USE_OPENAI === '1' || process.env.CLAUDE_CODE_USE_OPENAI === 'true'
+  const useAzureFoundry = process.env.CLAUDE_CODE_USE_AZURE_FOUNDRY === '1' || process.env.CLAUDE_CODE_USE_AZURE_FOUNDRY === 'true'
 
   if (useGemini) {
     const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash'
@@ -103,6 +104,12 @@ function detectProvider(): { name: string; model: string; baseUrl: string; isLoc
       baseUrl,
       isLocal: false,
     }
+  }
+
+  if (useAzureFoundry) {
+    const model = process.env.OPENAI_MODEL || 'grok-4'
+    const baseUrl = process.env.AZURE_FOUNDRY_BASE_URL || process.env.OPENAI_BASE_URL || 'Azure Foundry'
+    return { name: 'Azure Foundry', model, baseUrl, isLocal: false }
   }
 
   if (useOpenAI) {

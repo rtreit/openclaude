@@ -125,6 +125,17 @@ async function main(): Promise<void> {
       // Set API key early so provider validation sees it
       process.env.OPENAI_API_KEY ??= token
     }
+
+    // Early Azure Foundry env mapping so startup banner and validation
+    // see the correct API key and base URL.
+    if (isEnvTruthy(process.env.CLAUDE_CODE_USE_AZURE_FOUNDRY)) {
+      if (process.env.AZURE_FOUNDRY_API_KEY) {
+        process.env.OPENAI_API_KEY = process.env.AZURE_FOUNDRY_API_KEY
+      }
+      if (process.env.AZURE_FOUNDRY_BASE_URL) {
+        process.env.OPENAI_BASE_URL = process.env.AZURE_FOUNDRY_BASE_URL
+      }
+    }
   }
 
   const startupEnv = await buildStartupEnvFromProfile({

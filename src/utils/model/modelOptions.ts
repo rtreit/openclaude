@@ -6,6 +6,7 @@ import {
   isMaxSubscriber,
   isTeamPremiumSubscriber,
 } from '../auth.js'
+import { isEnvTruthy } from '../envUtils.js'
 import { getModelStrings } from './modelStrings.js'
 import {
   COST_TIER_3_15,
@@ -360,6 +361,18 @@ function getModelOptionsBase(fastMode = false): ModelOption[] {
         value: githubModel,
         label: githubModel,
         description: 'GitHub Models default',
+      },
+    ]
+  }
+
+  // Azure Foundry: show only the configured model (no Claude model list)
+  if (isEnvTruthy(process.env.CLAUDE_CODE_USE_AZURE_FOUNDRY)) {
+    const foundryModel = process.env.OPENAI_MODEL?.trim() || 'grok-4'
+    return [
+      {
+        value: foundryModel,
+        label: foundryModel,
+        description: 'Azure Foundry model',
       },
     ]
   }

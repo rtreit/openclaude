@@ -17,7 +17,8 @@ export function getAPIProvider(): APIProvider {
     ? 'gemini'
     : isEnvTruthy(process.env.CLAUDE_CODE_USE_GITHUB)
       ? 'github'
-      : isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI)
+      : isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI) ||
+          isEnvTruthy(process.env.CLAUDE_CODE_USE_AZURE_FOUNDRY)
         ? isCodexModel()
           ? 'codex'
           : 'openai'

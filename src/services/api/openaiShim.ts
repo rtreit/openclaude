@@ -1159,15 +1159,18 @@ class OpenAIShimMessages {
     // Detect Azure endpoints by hostname (not raw URL) to prevent bypass via
     // path segments like https://evil.com/cognitiveservices.azure.com/
     let isAzure = false
+    const isAzureFoundry = isEnvTruthy(process.env.CLAUDE_CODE_USE_AZURE_FOUNDRY)
     try {
       const { hostname } = new URL(request.baseUrl)
-      isAzure = hostname.endsWith('.azure.com') &&
+      // Azure Foundry uses standard OpenAI-compatible paths (not /deployments/),
+      // so we only set isAzure for traditional Azure OpenAI endpoints.
+      isAzure = !isAzureFoundry && hostname.endsWith('.azure.com') &&
         (hostname.includes('cognitiveservices') || hostname.includes('openai') || hostname.includes('services.ai'))
     } catch { /* malformed URL — not Azure */ }
 
     if (apiKey) {
-      if (isAzure) {
-        // Azure uses api-key header instead of Bearer token
+      // Azure Foundry and Azure OpenAI both use api-key header
+      if (isAzure || isAzureFoundry) {
         headers['api-key'] = apiKey
       } else {
         headers.Authorization = `Bearer ${apiKey}`
@@ -1398,28 +1401,41 @@ export function createOpenAIShimClient(options: {
   hydrateGeminiAccessTokenFromSecureStorage()
   hydrateGithubModelsTokenFromSecureStorage()
 
-  // When Gemini provider is active, map Gemini env vars to OpenAI-compatible ones
-  // so the existing providerConfig.ts infrastructure picks them up correctly.
-  if (isEnvTruthy(process.env.CLAUDE_CODE_USE_GEMINI)) {
-    process.env.OPENAI_BASE_URL ??=
-      process.env.GEMINI_BASE_URL ??
-      'https://generativelanguage.googleapis.com/v1beta/openai'
-    const geminiApiKey =
-      process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY
-    if (geminiApiKey && !process.env.OPENAI_API_KEY) {
-      process.env.OPENAI_API_KEY = geminiApiKey
+  // Skip env mappings when providerOverride is set (e.g. in tests or sub-agents)
+  if (!options.providerOverride) {
+    // When Gemini provider is active, map Gemini env vars to OpenAI-compatible ones
+    // so the existing providerConfig.ts infrastructure picks them up correctly.
+    if (isEnvTruthy(process.env.CLAUDE_CODE_USE_GEMINI)) {
+      process.env.OPENAI_BASE_URL ??=
+        process.env.GEMINI_BASE_URL ??
+        'https://generativelanguage.googleapis.com/v1beta/openai'
+      const geminiApiKey =
+        process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY
+      if (geminiApiKey && !process.env.OPENAI_API_KEY) {
+        process.env.OPENAI_API_KEY = geminiApiKey
+      }
+      if (process.env.GEMINI_MODEL && !process.env.OPENAI_MODEL) {
+        process.env.OPENAI_MODEL = process.env.GEMINI_MODEL
+      }
+    } else if (isEnvTruthy(process.env.CLAUDE_CODE_USE_GITHUB)) {
+      // Also accept GITHUB_COPILOT_TOKEN as a token source for Copilot users
+      if (!process.env.GITHUB_TOKEN && !process.env.GH_TOKEN && process.env.GITHUB_COPILOT_TOKEN) {
+        process.env.GITHUB_TOKEN = process.env.GITHUB_COPILOT_TOKEN
+      }
+      process.env.OPENAI_BASE_URL ??= resolveGithubBaseUrl()
+      process.env.OPENAI_API_KEY ??=
+        process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? ''
+    } else if (isEnvTruthy(process.env.CLAUDE_CODE_USE_AZURE_FOUNDRY)) {
+      // Map Azure Foundry env vars to OpenAI-compatible ones.
+      // AZURE_FOUNDRY_API_KEY always takes precedence over OPENAI_API_KEY
+      // to avoid sending an unrelated OpenAI key to the Azure endpoint.
+      if (process.env.AZURE_FOUNDRY_API_KEY) {
+        process.env.OPENAI_API_KEY = process.env.AZURE_FOUNDRY_API_KEY
+      }
+      if (process.env.AZURE_FOUNDRY_BASE_URL) {
+        process.env.OPENAI_BASE_URL = process.env.AZURE_FOUNDRY_BASE_URL
+      }
     }
-    if (process.env.GEMINI_MODEL && !process.env.OPENAI_MODEL) {
-      process.env.OPENAI_MODEL = process.env.GEMINI_MODEL
-    }
-  } else if (isEnvTruthy(process.env.CLAUDE_CODE_USE_GITHUB)) {
-    // Also accept GITHUB_COPILOT_TOKEN as a token source for Copilot users
-    if (!process.env.GITHUB_TOKEN && !process.env.GH_TOKEN && process.env.GITHUB_COPILOT_TOKEN) {
-      process.env.GITHUB_TOKEN = process.env.GITHUB_COPILOT_TOKEN
-    }
-    process.env.OPENAI_BASE_URL ??= resolveGithubBaseUrl()
-    process.env.OPENAI_API_KEY ??=
-      process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? ''
   }
 
   const beta = new OpenAIShimBeta({

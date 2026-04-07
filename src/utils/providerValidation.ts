@@ -23,7 +23,8 @@ export async function getProviderValidationError(
     ) => Promise<GeminiResolvedCredential>
   },
 ): Promise<string | null> {
-  const useOpenAI = isEnvTruthy(env.CLAUDE_CODE_USE_OPENAI)
+  const useOpenAI = isEnvTruthy(env.CLAUDE_CODE_USE_OPENAI) ||
+    isEnvTruthy(env.CLAUDE_CODE_USE_AZURE_FOUNDRY)
   const useGithub = isEnvTruthy(env.CLAUDE_CODE_USE_GITHUB)
 
   if (isEnvTruthy(env.CLAUDE_CODE_USE_GEMINI)) {

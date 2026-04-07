@@ -53,6 +53,10 @@ const OPENAI_CONTEXT_WINDOWS: Record<string, number> = {
   'gemini-2.5-pro':         1_048_576,
   'gemini-2.5-flash':       1_048_576,
 
+  // xAI Grok (via Azure Foundry)
+  'grok-4':                   200_000,
+  'grok-4-1-fast-reasoning':  200_000,
+
   // Ollama local models
   // Llama 3.1+ models support 128k context natively (Meta official specs).
   // Ollama defaults to num_ctx=8192 but users can configure higher values.
@@ -118,6 +122,10 @@ const OPENAI_MAX_OUTPUT_TOKENS: Record<string, number> = {
   'gemini-2.0-flash':          8_192,
   'gemini-2.5-pro':           65_536,
   'gemini-2.5-flash':         65_536,
+
+  // xAI Grok (via Azure Foundry)
+  'grok-4':                   100_000,
+  'grok-4-1-fast-reasoning':  100_000,
 
   // Ollama local models (conservative safe defaults)
   'llama3.3:70b':               4_096,

@@ -8,6 +8,8 @@ const originalEnv = {
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   OPENAI_MODEL: process.env.OPENAI_MODEL,
   CLAUDE_CODE_USE_GEMINI: process.env.CLAUDE_CODE_USE_GEMINI,
+  CLAUDE_CODE_USE_GITHUB: process.env.CLAUDE_CODE_USE_GITHUB,
+  CLAUDE_CODE_USE_AZURE_FOUNDRY: process.env.CLAUDE_CODE_USE_AZURE_FOUNDRY,
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
   GEMINI_ACCESS_TOKEN: process.env.GEMINI_ACCESS_TOKEN,
@@ -71,6 +73,8 @@ beforeEach(() => {
   process.env.OPENAI_API_KEY = 'test-key'
   delete process.env.OPENAI_MODEL
   delete process.env.CLAUDE_CODE_USE_GEMINI
+  delete process.env.CLAUDE_CODE_USE_GITHUB
+  delete process.env.CLAUDE_CODE_USE_AZURE_FOUNDRY
   delete process.env.GEMINI_API_KEY
   delete process.env.GOOGLE_API_KEY
   delete process.env.GEMINI_ACCESS_TOKEN
@@ -85,6 +89,8 @@ afterEach(() => {
   restoreEnv('OPENAI_API_KEY', originalEnv.OPENAI_API_KEY)
   restoreEnv('OPENAI_MODEL', originalEnv.OPENAI_MODEL)
   restoreEnv('CLAUDE_CODE_USE_GEMINI', originalEnv.CLAUDE_CODE_USE_GEMINI)
+  restoreEnv('CLAUDE_CODE_USE_GITHUB', originalEnv.CLAUDE_CODE_USE_GITHUB)
+  restoreEnv('CLAUDE_CODE_USE_AZURE_FOUNDRY', originalEnv.CLAUDE_CODE_USE_AZURE_FOUNDRY)
   restoreEnv('GEMINI_API_KEY', originalEnv.GEMINI_API_KEY)
   restoreEnv('GOOGLE_API_KEY', originalEnv.GOOGLE_API_KEY)
   restoreEnv('GEMINI_ACCESS_TOKEN', originalEnv.GEMINI_ACCESS_TOKEN)
@@ -552,7 +558,6 @@ test('preserves Gemini tool call extra_content from streaming chunks', async () 
   })
 })
 
-<<<<<<< HEAD
 test('normalizes plain string Bash tool arguments from OpenAI-compatible responses', async () => {
   globalThis.fetch = (async (_input, _init) => {
     return new Response(
@@ -588,33 +593,11 @@ test('normalizes plain string Bash tool arguments from OpenAI-compatible respons
           'Content-Type': 'application/json',
         },
       },
-=======
-test('strips thinking blocks from assistant messages instead of leaking them as text', async () => {
-  let requestBody: Record<string, unknown> | undefined
-
-  globalThis.fetch = (async (_input, init) => {
-    requestBody = JSON.parse(String(init?.body))
-
-    return new Response(
-      JSON.stringify({
-        id: 'chatcmpl-1',
-        model: 'gpt-4o',
-        choices: [
-          {
-            message: { role: 'assistant', content: 'done' },
-            finish_reason: 'stop',
-          },
-        ],
-        usage: { prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 },
-      }),
-      { headers: { 'Content-Type': 'application/json' } },
->>>>>>> 037a855 (fix: strip Anthropic-specific params from 3P provider paths)
     )
   }) as FetchType
 
   const client = createOpenAIShimClient({}) as OpenAIShimClient
 
-<<<<<<< HEAD
   const message = await client.beta.messages.create({
     model: 'google/gemini-3.1-pro-preview',
     system: 'test system',
@@ -1692,7 +1675,32 @@ test('preserves parsed string input for unknown JSON string tool arguments', asy
       input: 'pwd',
     },
   ])
-=======
+})
+
+test('strips thinking blocks from assistant messages', async () => {
+  let requestBody: Record<string, unknown> | undefined
+
+  globalThis.fetch = (async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body))
+
+    return new Response(
+      JSON.stringify({
+        id: 'chatcmpl-1',
+        model: 'gpt-4o',
+        choices: [
+          {
+            message: { role: 'assistant', content: 'done' },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 },
+      }),
+      { headers: { 'Content-Type': 'application/json' } },
+    )
+  }) as FetchType
+
+  const client = createOpenAIShimClient({}) as OpenAIShimClient
+
   await client.beta.messages.create({
     model: 'gpt-4o',
     system: 'test',
@@ -1718,7 +1726,6 @@ test('preserves parsed string input for unknown JSON string tool arguments', asy
   // not <thinking>secret reasoning</thinking>
   expect(assistantMsg?.content).toBe('visible reply')
   expect(assistantMsg?.content).not.toContain('thinking')
->>>>>>> 037a855 (fix: strip Anthropic-specific params from 3P provider paths)
 })
 
 test('sanitizes malformed MCP tool schemas before sending them to OpenAI', async () => {
