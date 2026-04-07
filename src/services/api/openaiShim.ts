@@ -112,7 +112,6 @@ function resolveGithubBaseUrl(): string {
 
   return GITHUB_MODELS_DEFAULT_BASE
 }
-
 function hasGeminiApiHost(baseUrl: string | undefined): boolean {
   if (!baseUrl) return false
 
