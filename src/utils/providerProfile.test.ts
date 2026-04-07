@@ -505,6 +505,31 @@ test('buildStartupEnvFromProfile leaves profile-managed env untouched', async ()
   assert.equal(env.OPENAI_MODEL, undefined)
 })
 
+test('buildStartupEnvFromProfile leaves explicit Azure Foundry selections untouched', async () => {
+  const processEnv = {
+    CLAUDE_CODE_USE_AZURE_FOUNDRY: '1',
+    OPENAI_BASE_URL: 'https://foundry-debug-1.openai.azure.com/openai/v1',
+    OPENAI_MODEL: 'grok-4',
+    AZURE_FOUNDRY_API_KEY: 'azure-key',
+  }
+
+  const env = await buildStartupEnvFromProfile({
+    persisted: profile('openai', {
+      OPENAI_API_KEY: 'sk-persisted',
+      OPENAI_MODEL: 'gpt-4o',
+    }),
+    processEnv,
+  })
+
+  assert.equal(env, processEnv)
+  assert.equal(env.CLAUDE_CODE_USE_AZURE_FOUNDRY, '1')
+  assert.equal(
+    env.OPENAI_BASE_URL,
+    'https://foundry-debug-1.openai.azure.com/openai/v1',
+  )
+  assert.equal(env.OPENAI_MODEL, 'grok-4')
+})
+
 test('buildStartupEnvFromProfile treats explicit falsey provider flags as user intent', async () => {
   const processEnv = {
     CLAUDE_CODE_USE_OPENAI: '0',

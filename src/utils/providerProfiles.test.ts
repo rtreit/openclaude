@@ -99,11 +99,12 @@ function buildProfile(overrides: Partial<ProviderProfile> = {}): ProviderProfile
 }
 
 describe('applyProviderProfileToProcessEnv', () => {
-  test('openai profile clears competing gemini/github flags', async () => {
+  test('openai profile clears competing gemini/github/azure-foundry flags', async () => {
     const { applyProviderProfileToProcessEnv } =
       await importFreshProviderProfileModules()
     process.env.CLAUDE_CODE_USE_GEMINI = '1'
     process.env.CLAUDE_CODE_USE_GITHUB = '1'
+    process.env.CLAUDE_CODE_USE_AZURE_FOUNDRY = '1'
 
     applyProviderProfileToProcessEnv(buildProfile())
     const { getAPIProvider: getFreshAPIProvider } =
@@ -111,6 +112,7 @@ describe('applyProviderProfileToProcessEnv', () => {
 
     expect(process.env.CLAUDE_CODE_USE_GEMINI).toBeUndefined()
     expect(process.env.CLAUDE_CODE_USE_GITHUB).toBeUndefined()
+    expect(process.env.CLAUDE_CODE_USE_AZURE_FOUNDRY).toBeUndefined()
     expect(String(process.env.CLAUDE_CODE_USE_OPENAI)).toBe('1')
     expect(process.env.CLAUDE_CODE_PROVIDER_PROFILE_ENV_APPLIED_ID).toBe(
       'provider_test',
@@ -163,6 +165,33 @@ describe('applyActiveProviderProfileFromConfig', () => {
     expect(applied).toBeUndefined()
     expect(process.env.OPENAI_BASE_URL).toBe('http://localhost:11434/v1')
     expect(process.env.OPENAI_MODEL).toBe('qwen2.5:3b')
+  })
+
+  test('does not override explicit Azure Foundry startup selection', async () => {
+    const { applyActiveProviderProfileFromConfig } =
+      await importFreshProviderProfileModules()
+    process.env.CLAUDE_CODE_USE_AZURE_FOUNDRY = '1'
+    process.env.OPENAI_BASE_URL =
+      'https://foundry-debug-1.openai.azure.com/openai/v1'
+    process.env.OPENAI_MODEL = 'grok-4'
+
+    const applied = applyActiveProviderProfileFromConfig({
+      providerProfiles: [
+        buildProfile({
+          id: 'saved_openai',
+          baseUrl: 'https://api.openai.com/v1',
+          model: 'gpt-4o',
+        }),
+      ],
+      activeProviderProfileId: 'saved_openai',
+    } as any)
+
+    expect(applied).toBeUndefined()
+    expect(process.env.CLAUDE_CODE_USE_AZURE_FOUNDRY).toBe('1')
+    expect(process.env.OPENAI_BASE_URL).toBe(
+      'https://foundry-debug-1.openai.azure.com/openai/v1',
+    )
+    expect(process.env.OPENAI_MODEL).toBe('grok-4')
   })
 
   test('does not override explicit startup selection when profile marker is stale', async () => {
